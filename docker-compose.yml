@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: constructora_db
+    ports:
+      - "5499:5432"
+    volumes:
+      - pgdata_v2:/var/lib/postgresql/data
+
+volumes:
+  pgdata_v2:
