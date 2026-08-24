@@ -162,7 +162,9 @@ export default function ExpenseModal({ isOpen, onClose, onSave, projects, catego
                   >
                     <option value="" disabled>Seleccione un proyecto</option>
                     {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}{p.cliente_nombre ? ` (${p.cliente_nombre})` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Receipt, Plus, Search, Edit2, Trash2, Filter, Wallet, HardHat, Briefcase } from 'lucide-react';
+import { Receipt, Plus, Search, Edit2, Trash2, Filter, Wallet, HardHat, Briefcase, Printer } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 export default function ExpensesTab({ 
@@ -75,22 +75,33 @@ export default function ExpensesTab({
           </span>
         </div>
 
-        <button 
-          className="btn btn-primary"
-          style={{
-            background: activeSubTab === 'estudio' 
-              ? 'linear-gradient(135deg, var(--accent-purple), #9333ea)' 
-              : activeSubTab === 'obras'
-              ? 'linear-gradient(135deg, var(--accent-amber), #d97706)'
-              : undefined
-          }}
-          onClick={() => onOpenNewExpense(activeSubTab === 'estudio')}
-        >
-          <Plus size={16} />
-          <span>
-            {activeSubTab === 'estudio' ? 'Registrar Gasto de Estudio' : activeSubTab === 'obras' ? 'Registrar Gasto de Obra' : 'Registrar Nuevo Gasto'}
-          </span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary no-print"
+            onClick={() => window.print()}
+            title="Imprimir listado filtrado"
+          >
+            <Printer size={16} />
+            <span>Imprimir</span>
+          </button>
+          
+          <button 
+            className="btn btn-primary"
+            style={{
+              background: activeSubTab === 'estudio' 
+                ? 'linear-gradient(135deg, var(--accent-purple), #9333ea)' 
+                : activeSubTab === 'obras'
+                ? 'linear-gradient(135deg, var(--accent-amber), #d97706)'
+                : undefined
+            }}
+            onClick={() => onOpenNewExpense(activeSubTab === 'estudio')}
+          >
+            <Plus size={16} />
+            <span>
+              {activeSubTab === 'estudio' ? 'Registrar Gasto de Estudio' : activeSubTab === 'obras' ? 'Registrar Gasto de Obra' : 'Registrar Nuevo Gasto'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}

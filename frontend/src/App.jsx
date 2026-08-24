@@ -135,7 +135,9 @@ function App() {
 
   const [isTesoreriaModalOpen, setIsTesoreriaModalOpen] = useState(false);
   const [isMovimientoModalOpen, setIsMovimientoModalOpen] = useState(false);
+  const [cambioToEdit, setCambioToEdit] = useState(null);
   const [isNewIncomeModalOpen, setIsNewIncomeModalOpen] = useState(false);
+  const [incomeToEdit, setIncomeToEdit] = useState(null);
 
   // Modales de empleados
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -314,20 +316,25 @@ function App() {
   };
 
   const handleSaveNewIncome = async (incomeData) => {
+    const isEdit = !!incomeData.id;
+    const url = isEdit ? `${API_BASE}/ingresos/${incomeData.id}` : `${API_BASE}/ingresos`;
+    const method = isEdit ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch(`${API_BASE}/ingresos`, {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(incomeData)
       });
 
       if (res.ok) {
-        showToast('¡Ingreso registrado e ingresado a Tesorería!');
+        showToast(isEdit ? '¡Ingreso modificado con éxito!' : '¡Ingreso registrado e ingresado a Tesorería!');
         setIsNewIncomeModalOpen(false);
+        setIncomeToEdit(null);
         loadAllData();
       } else {
         const err = await res.json();
-        showToast(err.error || 'Error al registrar el ingreso', 'error');
+        showToast(err.error || 'Error al guardar el ingreso', 'error');
       }
     } catch (error) {
       showToast('Error de conexión', 'error');
@@ -724,8 +731,14 @@ function App() {
 
   const handleSaveCambioMoneda = async (cambioData) => {
     try {
-      const res = await fetch(`${API_BASE}/tesoreria/cambio-moneda`, {
-        method: 'POST',
+      const isEdit = Boolean(cambioData.operacion_id);
+      const url = isEdit 
+        ? `${API_BASE}/tesoreria/cambio-moneda/${cambioData.operacion_id}`
+        : `${API_BASE}/tesoreria/cambio-moneda`;
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cambioData)
       });
@@ -736,12 +749,114 @@ function App() {
         return;
       }
 
-      showToast(`¡Cambio de moneda registrado! Se cambiaron US$ ${data.monto_usd.toLocaleString('es-AR')} a cotización $ ${data.cotizacion.toLocaleString('es-AR')}.`, 'success');
+      showToast(
+        isEdit 
+          ? `¡Cambio de moneda actualizado correctamente! Cotización: $ ${data.cotizacion.toLocaleString('es-AR')}.` 
+          : `¡Cambio de moneda registrado! Se cambiaron US$ ${data.monto_usd.toLocaleString('es-AR')} a cotización $ ${data.cotizacion.toLocaleString('es-AR')}.`, 
+        'success'
+      );
       setIsMovimientoModalOpen(false);
+      setCambioToEdit(null);
       loadAllData();
     } catch (error) {
       console.error('Error al guardar cambio de moneda:', error);
       showToast('Error de red al procesar el cambio de moneda', 'error');
+    }
+  };
+
+  const handleOpenEditCambio = (mov) => {
+    const opId = mov.operacion_id;
+    let relatedMovs = [];
+
+    if (opId) {
+      relatedMovs = allMovements.filter(m => m.operacion_id === opId);
+    }
+
+    if (relatedMovs.length === 0) {
+      const movDate = new Date(mov.fecha || mov.creado_en).getTime();
+      relatedMovs = allMovements.filter(m => {
+        const d = new Date(m.fecha || m.creado_en).getTime();
+        return Math.abs(d - movDate) < 120000 && (m.concepto?.includes('[Cambio USD -> ARS]') || m.concepto?.includes('[Cambio Moneda Entrada]'));
+      });
+    }
+
+    if (relatedMovs.length === 0) relatedMovs = [mov];
+
+    const egresoUSD = relatedMovs.find(m => m.tipo === 'egreso' && m.moneda === 'USD') || relatedMovs.find(m => m.tipo === 'egreso') || mov;
+    const ingresosARS = relatedMovs.filter(m => m.tipo === 'ingreso');
+
+    const cuentaOrigenUSDId = egresoUSD.cuenta_id;
+    const montoUSD = egresoUSD.monto;
+
+    let cotiz = 0;
+    if (egresoUSD.concepto && egresoUSD.concepto.includes('@ Cotiz. $')) {
+      const match = egresoUSD.concepto.match(/@ Cotiz\.\s*\$\s*([\d\.,]+)/);
+      if (match && match[1]) {
+        cotiz = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+      }
+    }
+
+    const totalArsSum = ingresosARS.reduce((acc, curr) => acc + curr.monto, 0);
+
+    if (!cotiz || isNaN(cotiz)) {
+      cotiz = montoUSD > 0 ? (totalArsSum / montoUSD) : 0;
+    }
+
+    const distribucion = ingresosARS.length > 0 
+      ? ingresosARS.map(m => {
+          let ref = '';
+          if (m.concepto && m.concepto.includes('| Ref:')) {
+            ref = m.concepto.split('| Ref:')[1].trim();
+          }
+          return {
+            cuenta_id: m.cuenta_id,
+            monto_ars: m.monto,
+            referencia: ref
+          };
+        })
+      : [{ cuenta_id: '', monto_ars: totalArsSum || '', referencia: '' }];
+
+    setCambioToEdit({
+      operacion_id: opId || mov.id,
+      cuenta_origen_id: cuentaOrigenUSDId,
+      monto_usd: montoUSD,
+      cotizacion: cotiz,
+      distribucion,
+      fecha: mov.fecha
+    });
+
+    setIsMovimientoModalOpen(true);
+  };
+
+  const handleDeleteMovimiento = async (mov) => {
+    if (mov.ingreso_id || mov.gasto_id) {
+      showToast('Este movimiento proviene de un comprobante de Ingreso o Gasto. Edítelo o elimínelo desde su pestaña respectiva.', 'error');
+      return;
+    }
+
+    const esCambio = mov.concepto?.includes('[Cambio') || mov.operacion_id?.startsWith('cambio');
+    const confirmMsg = esCambio
+      ? '¿Estás seguro de eliminar esta operación de Cambio de Moneda? Se devolverán los Dólares a la cuenta origen y se descontarán los Pesos de las cuentas destino.'
+      : '¿Estás seguro de eliminar este movimiento de tesorería? El saldo de la cuenta involucrada será revertido automáticamente.';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/tesoreria/movimientos/${mov.id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Error al eliminar el movimiento', 'error');
+        return;
+      }
+
+      showToast('¡Movimiento eliminado y saldos revertidos con éxito!', 'success');
+      loadAllData();
+    } catch (error) {
+      console.error('Error al eliminar movimiento:', error);
+      showToast('Error de red al eliminar el movimiento', 'error');
     }
   };
 
@@ -893,9 +1008,12 @@ function App() {
             onOpenNewExpense={(esEstudio) => handleOpenNewExpense(esEstudio)}
             onEditExpense={(gasto) => { setExpenseToEdit(gasto); setIsExpenseModalOpen(true); }}
             onDeleteExpense={handleDeleteExpense}
-            onOpenNewMovimiento={() => setIsMovimientoModalOpen(true)}
-            onOpenNewIncome={() => setIsNewIncomeModalOpen(true)}
+            onOpenNewMovimiento={() => { setCambioToEdit(null); setIsMovimientoModalOpen(true); }}
+            onOpenNewIncome={() => { setIncomeToEdit(null); setIsNewIncomeModalOpen(true); }}
+            onEditIncome={(ing) => { setIncomeToEdit(ing); setIsNewIncomeModalOpen(true); }}
             onDeleteIncome={handleDeleteIncome}
+            onEditCambio={handleOpenEditCambio}
+            onDeleteMovimiento={handleDeleteMovimiento}
           />
         )}
 
@@ -1011,18 +1129,20 @@ function App() {
 
       <MovimientoModal
         isOpen={isMovimientoModalOpen}
-        onClose={() => setIsMovimientoModalOpen(false)}
+        onClose={() => { setIsMovimientoModalOpen(false); setCambioToEdit(null); }}
         onSave={handleSaveMovimiento}
         onSaveCambio={handleSaveCambioMoneda}
         tesoreriaAccounts={tesoreriaAccounts}
+        cambioToEdit={cambioToEdit}
       />
 
       <NewIncomeModal
         isOpen={isNewIncomeModalOpen}
-        onClose={() => setIsNewIncomeModalOpen(false)}
+        onClose={() => { setIsNewIncomeModalOpen(false); setIncomeToEdit(null); }}
         onSave={handleSaveNewIncome}
         projects={projects}
         tesoreriaAccounts={tesoreriaAccounts}
+        incomeToEdit={incomeToEdit}
       />
 
       <EmployeeModal

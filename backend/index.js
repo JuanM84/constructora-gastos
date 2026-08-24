@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
 
 const app = express();
 
@@ -50,6 +50,7 @@ const initEmpleadosDB = async () => {
 
       ALTER TABLE pagos_empleados ADD COLUMN IF NOT EXISTS etapa_id INTEGER REFERENCES etapas(id) ON DELETE SET NULL;
       ALTER TABLE gastos ADD COLUMN IF NOT EXISTS moneda VARCHAR(10) DEFAULT 'ARS';
+      ALTER TABLE movimientos_tesoreria ADD COLUMN IF NOT EXISTS operacion_id VARCHAR(50);
 
       INSERT INTO categorias (nombre, es_estudio)
       VALUES ('Mano de Obra (MDO)', FALSE)
@@ -398,19 +399,20 @@ app.post('/api/tesoreria/movimiento', async (req, res) => {
 
     // 4. Registrar movimientos en historial
     const motivoText = concepto && concepto.trim() ? concepto.trim() : 'Movimiento interno entre cuentas';
+    const fechaMov = fecha || new Date().toISOString().split('T')[0];
     
     // Egreso en origen
     await client.query(
-      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto)
-       VALUES ($1, 'egreso', $2, $3)`,
-      [cuentaOrigenId, montoNum, `[Movimiento Salida] -> A ${cuentaDestino.nombre}: ${motivoText}`]
+      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, fecha)
+       VALUES ($1, 'egreso', $2, $3, $4)`,
+      [cuentaOrigenId, montoNum, `[Movimiento Salida] -> A ${cuentaDestino.nombre}: ${motivoText}`, fechaMov]
     );
 
     // Ingreso en destino
     await client.query(
-      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto)
-       VALUES ($1, 'ingreso', $2, $3)`,
-      [cuentaDestinoId, montoNum, `[Movimiento Entrada] <- De ${cuentaOrigen.nombre}: ${motivoText}`]
+      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, fecha)
+       VALUES ($1, 'ingreso', $2, $3, $4)`,
+      [cuentaDestinoId, montoNum, `[Movimiento Entrada] <- De ${cuentaOrigen.nombre}: ${motivoText}`, fechaMov]
     );
 
     await client.query('COMMIT');
@@ -437,6 +439,8 @@ app.post('/api/tesoreria/cambio-moneda', async (req, res) => {
   const cuentaOrigenId = parseInt(cuenta_origen_id, 10);
   const montoUsdNum = parseFloat(monto_usd);
   const cotizNum = parseFloat(cotizacion);
+  const operacionId = `cambio_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const fechaOperacion = fecha || new Date().toISOString().split('T')[0];
 
   if (!cuentaOrigenId || isNaN(montoUsdNum) || montoUsdNum <= 0 || isNaN(cotizNum) || cotizNum <= 0) {
     return res.status(400).json({ error: 'Monto en USD y Cotización deben ser números mayores a 0' });
@@ -465,16 +469,21 @@ app.post('/api/tesoreria/cambio-moneda', async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'La cuenta origen USD no existe' });
     }
-    const cuentaOrigen = resOrigen.rows[0];
 
     // 2. Descontar Dólares de origen
     await client.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [montoUsdNum, cuentaOrigenId]);
 
     // 3. Registrar egreso en USD
     await client.query(
-      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto)
-       VALUES ($1, 'egreso', $2, $3)`,
-      [cuentaOrigenId, montoUsdNum, `[Cambio USD -> ARS] Venta US$ ${montoUsdNum.toLocaleString('es-AR')} @ Cotiz. $ ${cotizNum.toLocaleString('es-AR')}`]
+      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, operacion_id, fecha)
+       VALUES ($1, 'egreso', $2, $3, $4, $5)`,
+      [
+        cuentaOrigenId, 
+        montoUsdNum, 
+        `[Cambio USD -> ARS] Venta US$ ${montoUsdNum.toLocaleString('es-AR')} @ Cotiz. $ ${cotizNum.toLocaleString('es-AR')}`,
+        operacionId,
+        fechaOperacion
+      ]
     );
 
     // 4. Acreditar Pesos en cada cuenta de destino
@@ -484,17 +493,14 @@ app.post('/api/tesoreria/cambio-moneda', async (req, res) => {
       const ref = item.referencia ? item.referencia.trim() : '';
 
       if (destId && montoArs > 0) {
-        const resDest = await client.query('SELECT * FROM cuentas_tesoreria WHERE id = $1', [destId]);
-        const nombreDest = resDest.rows.length > 0 ? resDest.rows[0].nombre : 'Cuenta Pesos';
-
         await client.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [montoArs, destId]);
 
         const detalleConcepto = `[Cambio Moneda Entrada] Ingreso $ ${montoArs.toLocaleString('es-AR')} (Venta US$ ${montoUsdNum} @ $ ${cotizNum})` + (ref ? ` | Ref: ${ref}` : '');
 
         await client.query(
-          `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto)
-           VALUES ($1, 'ingreso', $2, $3)`,
-          [destId, montoArs, detalleConcepto]
+          `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, operacion_id, fecha)
+           VALUES ($1, 'ingreso', $2, $3, $4, $5)`,
+          [destId, montoArs, detalleConcepto, operacionId, fechaOperacion]
         );
       }
     }
@@ -503,6 +509,7 @@ app.post('/api/tesoreria/cambio-moneda', async (req, res) => {
 
     res.status(201).json({
       mensaje: 'Cambio de moneda registrado con éxito',
+      operacion_id: operacionId,
       monto_usd: montoUsdNum,
       cotizacion: cotizNum,
       total_ars: totalArsEsperado
@@ -511,6 +518,186 @@ app.post('/api/tesoreria/cambio-moneda', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error procesando cambio de moneda:', error);
     res.status(500).json({ error: 'Error al procesar la operación de cambio de moneda' });
+  } finally {
+    client.release();
+  }
+});
+
+// 6.b Editar cambio de moneda existente
+app.put('/api/tesoreria/cambio-moneda/:operacionId', async (req, res) => {
+  const { operacionId } = req.params;
+  const { cuenta_origen_id, monto_usd, cotizacion, distribucion, fecha } = req.body;
+
+  const cuentaOrigenId = parseInt(cuenta_origen_id, 10);
+  const montoUsdNum = parseFloat(monto_usd);
+  const cotizNum = parseFloat(cotizacion);
+  const fechaOperacion = fecha || new Date().toISOString().split('T')[0];
+
+  if (!cuentaOrigenId || isNaN(montoUsdNum) || montoUsdNum <= 0 || isNaN(cotizNum) || cotizNum <= 0) {
+    return res.status(400).json({ error: 'Monto en USD y Cotización deben ser números mayores a 0' });
+  }
+
+  if (!Array.isArray(distribucion) || distribucion.length === 0) {
+    return res.status(400).json({ error: 'Debe especificar al menos una cuenta de destino para los pesos' });
+  }
+
+  const totalArsEsperado = montoUsdNum * cotizNum;
+  const totalArsDistribucion = distribucion.reduce((acc, d) => acc + (parseFloat(d.monto_ars) || 0), 0);
+
+  if (Math.abs(totalArsEsperado - totalArsDistribucion) > 0.05) {
+    return res.status(400).json({
+      error: `La suma de pesos asignados ($ ${totalArsDistribucion.toLocaleString('es-AR')}) no coincide con el total de la operación ($ ${totalArsEsperado.toLocaleString('es-AR')})`
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Obtener movimientos anteriores para revertir saldos
+    let prevMovements = await client.query('SELECT * FROM movimientos_tesoreria WHERE operacion_id = $1', [operacionId]);
+    
+    // Si no tiene operacion_id almacenado (registros viejos), intentar por paridad de ID o patrón
+    if (prevMovements.rows.length === 0) {
+      const matchId = parseInt(operacionId, 10);
+      if (!isNaN(matchId)) {
+        const singleMov = await client.query('SELECT * FROM movimientos_tesoreria WHERE id = $1', [matchId]);
+        if (singleMov.rows.length > 0) {
+          const m = singleMov.rows[0];
+          const pairedRes = await client.query(
+            `SELECT * FROM movimientos_tesoreria 
+             WHERE (concepto LIKE '%[Cambio USD -> ARS]%' OR concepto LIKE '%[Cambio Moneda Entrada]%')
+               AND fecha = $1`,
+            [m.fecha]
+          );
+          prevMovements = pairedRes.rows.length > 0 ? pairedRes : singleMov;
+        }
+      }
+    }
+
+    // Revertir saldos de los movimientos anteriores
+    for (const mov of prevMovements.rows) {
+      const mVal = parseFloat(mov.monto);
+      if (mov.tipo === 'egreso') {
+        await client.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [mVal, mov.cuenta_id]);
+      } else if (mov.tipo === 'ingreso') {
+        await client.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [mVal, mov.cuenta_id]);
+      }
+      await client.query('DELETE FROM movimientos_tesoreria WHERE id = $1', [mov.id]);
+    }
+
+    // 2. Aplicar nuevos saldos y movimientos
+    const resOrigen = await client.query('SELECT * FROM cuentas_tesoreria WHERE id = $1', [cuentaOrigenId]);
+    if (resOrigen.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'La cuenta origen USD no existe' });
+    }
+
+    await client.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [montoUsdNum, cuentaOrigenId]);
+
+    const newOpId = operacionId.startsWith('cambio_') ? operacionId : `cambio_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    await client.query(
+      `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, operacion_id, fecha)
+       VALUES ($1, 'egreso', $2, $3, $4, $5)`,
+      [
+        cuentaOrigenId, 
+        montoUsdNum, 
+        `[Cambio USD -> ARS] Venta US$ ${montoUsdNum.toLocaleString('es-AR')} @ Cotiz. $ ${cotizNum.toLocaleString('es-AR')}`,
+        newOpId,
+        fechaOperacion
+      ]
+    );
+
+    for (const item of distribucion) {
+      const destId = parseInt(item.cuenta_id, 10);
+      const montoArs = parseFloat(item.monto_ars);
+      const ref = item.referencia ? item.referencia.trim() : '';
+
+      if (destId && montoArs > 0) {
+        await client.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [montoArs, destId]);
+
+        const detalleConcepto = `[Cambio Moneda Entrada] Ingreso $ ${montoArs.toLocaleString('es-AR')} (Venta US$ ${montoUsdNum} @ $ ${cotizNum})` + (ref ? ` | Ref: ${ref}` : '');
+
+        await client.query(
+          `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, operacion_id, fecha)
+           VALUES ($1, 'ingreso', $2, $3, $4, $5)`,
+          [destId, montoArs, detalleConcepto, newOpId, fechaOperacion]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      mensaje: 'Cambio de moneda actualizado con éxito',
+      operacion_id: newOpId,
+      monto_usd: montoUsdNum,
+      cotizacion: cotizNum,
+      total_ars: totalArsEsperado
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error actualizando cambio de moneda:', error);
+    res.status(500).json({ error: 'Error al actualizar la operación de cambio de moneda' });
+  } finally {
+    client.release();
+  }
+});
+
+// 6.c Eliminar cualquier movimiento de tesorería (con reversión de saldos)
+app.delete('/api/tesoreria/movimientos/:id', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const movRes = await client.query('SELECT * FROM movimientos_tesoreria WHERE id = $1', [id]);
+    if (movRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'El movimiento no existe' });
+    }
+    const mov = movRes.rows[0];
+
+    if (mov.ingreso_id || mov.gasto_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Este movimiento proviene de un comprobante de Ingreso o Gasto. Edítelo o elimínelo desde la pestaña correspondiente.' });
+    }
+
+    let movementsToDelete = [mov];
+    if (mov.operacion_id) {
+      const groupRes = await client.query('SELECT * FROM movimientos_tesoreria WHERE operacion_id = $1', [mov.operacion_id]);
+      if (groupRes.rows.length > 0) {
+        movementsToDelete = groupRes.rows;
+      }
+    } else if (mov.concepto && (mov.concepto.includes('[Cambio USD -> ARS]') || mov.concepto.includes('[Cambio Moneda Entrada]'))) {
+      const pairedRes = await client.query(
+        `SELECT * FROM movimientos_tesoreria 
+         WHERE (concepto LIKE '%[Cambio USD -> ARS]%' OR concepto LIKE '%[Cambio Moneda Entrada]%')
+           AND fecha = $1`,
+        [mov.fecha]
+      );
+      if (pairedRes.rows.length > 0) {
+        movementsToDelete = pairedRes.rows;
+      }
+    }
+
+    // Revertir saldos
+    for (const m of movementsToDelete) {
+      const mVal = parseFloat(m.monto);
+      if (m.tipo === 'egreso') {
+        await client.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [mVal, m.cuenta_id]);
+      } else if (m.tipo === 'ingreso') {
+        await client.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [mVal, m.cuenta_id]);
+      }
+      await client.query('DELETE FROM movimientos_tesoreria WHERE id = $1', [m.id]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ mensaje: 'Movimiento(s) eliminado(s) y saldos revertidos con éxito' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al eliminar movimiento de tesorería:', error);
+    res.status(500).json({ error: 'Error al eliminar el movimiento de tesorería' });
   } finally {
     client.release();
   }
@@ -978,9 +1165,9 @@ app.post('/api/proyectos/:proyectoId/ingresos', async (req, res) => {
       const proyNombre = proyRes.rows[0]?.nombre || 'Proyecto';
 
       await pool.query(
-        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, ingreso_id)
-         VALUES ($1, 'ingreso', $2, $3, $4)`,
-        [cuentaIdNum, numMonto, `Cobro de Cliente (${proyNombre}): ${concepto || 'Entrega de dinero'}`, ingresoId]
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, ingreso_id, fecha)
+         VALUES ($1, 'ingreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `Cobro de Cliente (${proyNombre}): ${concepto || 'Entrega de dinero'}`, ingresoId, fechaIngreso]
       );
     }
 
@@ -1085,9 +1272,9 @@ app.post('/api/ingresos', async (req, res) => {
       }
 
       await pool.query(
-        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, ingreso_id)
-         VALUES ($1, 'ingreso', $2, $3, $4)`,
-        [cuentaIdNum, numMonto, `[Ingreso] ${concepto.trim()} (${origenText})`, ingresoId]
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, ingreso_id, fecha)
+         VALUES ($1, 'ingreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `[Ingreso] ${concepto.trim()} (${origenText})`, ingresoId, fechaIngreso]
       );
     }
 
@@ -1130,6 +1317,10 @@ app.delete('/api/ingresos/:id', async (req, res) => {
         `UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2`,
         [ing.monto, ing.cuenta_id]
       );
+      await pool.query(
+        `DELETE FROM movimientos_tesoreria WHERE ingreso_id = $1`,
+        [id]
+      );
     }
 
     await pool.query('DELETE FROM ingresos_cliente WHERE id = $1', [id]);
@@ -1138,6 +1329,122 @@ app.delete('/api/ingresos/:id', async (req, res) => {
   } catch (error) {
     console.error('Error eliminando ingreso de cliente:', error);
     res.status(500).json({ error: 'Error al eliminar la entrega de dinero' });
+  }
+});
+
+// PUT actualizar ingreso existente
+app.put('/api/ingresos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { proyecto_id, etapa_id, monto, moneda, medio_pago, cuenta_id, fecha, concepto, comprobante_url, es_ingreso_estudio } = req.body;
+
+  const numMonto = parseFloat(monto);
+  if (isNaN(numMonto) || numMonto <= 0) {
+    return res.status(400).json({ error: 'El monto del ingreso debe ser mayor a 0' });
+  }
+
+  if (!concepto || !concepto.trim()) {
+    return res.status(400).json({ error: 'El concepto o descripción del ingreso es obligatorio' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Obtener ingreso existente
+    const ingRes = await client.query('SELECT * FROM ingresos_cliente WHERE id = $1', [id]);
+    if (ingRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ingreso no encontrado' });
+    }
+
+    const ingAnterior = ingRes.rows[0];
+
+    // 2. Revertir saldo anterior en tesorería si tenía cuenta asociada
+    if (ingAnterior.cuenta_id) {
+      await client.query(
+        `UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2`,
+        [ingAnterior.monto, ingAnterior.cuenta_id]
+      );
+      await client.query(
+        `DELETE FROM movimientos_tesoreria WHERE ingreso_id = $1`,
+        [id]
+      );
+    }
+
+    // 3. Preparar nuevos valores
+    const fechaIngreso = fecha || new Date().toISOString().split('T')[0];
+    const proyIdNum = es_ingreso_estudio ? null : (proyecto_id ? parseInt(proyecto_id, 10) : null);
+    const etapaIdNum = es_ingreso_estudio ? null : (etapa_id ? parseInt(etapa_id, 10) : null);
+    const cuentaIdNum = cuenta_id ? parseInt(cuenta_id, 10) : null;
+    let monedaVal = moneda || 'ARS';
+
+    if (cuentaIdNum) {
+      const cRes = await client.query('SELECT nombre, tipo, moneda FROM cuentas_tesoreria WHERE id = $1', [cuentaIdNum]);
+      if (cRes.rows.length > 0) {
+        const acc = cRes.rows[0];
+        const cLower = (acc.nombre || '').toLowerCase();
+        if (acc.moneda === 'USD' || acc.tipo === 'efectivo_usd' || cLower.includes('usd') || cLower.includes('dolar') || cLower.includes('dólar')) {
+          monedaVal = 'USD';
+        }
+      }
+    } else if (medio_pago === 'efectivo_usd') {
+      monedaVal = 'USD';
+    }
+
+    // 4. Actualizar registro de ingreso
+    const updateRes = await client.query(
+      `UPDATE ingresos_cliente
+       SET proyecto_id = $1, etapa_id = $2, monto = $3, moneda = $4, medio_pago = $5, cuenta_id = $6, fecha = $7, concepto = $8, comprobante_url = $9
+       WHERE id = $10 RETURNING *`,
+      [proyIdNum, etapaIdNum, numMonto, monedaVal, medio_pago || (monedaVal === 'USD' ? 'efectivo_usd' : 'efectivo_ars'), cuentaIdNum, fechaIngreso, concepto.trim(), comprobante_url || null, id]
+    );
+
+    // 5. Aplicar nuevo saldo a tesorería y registrar movimiento
+    if (cuentaIdNum) {
+      await client.query(
+        `UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2`,
+        [numMonto, cuentaIdNum]
+      );
+
+      let origenText = 'Servicio del Estudio / Asesoría';
+      if (proyIdNum) {
+        const proyRes = await client.query('SELECT nombre FROM proyectos WHERE id = $1', [proyIdNum]);
+        origenText = proyRes.rows[0]?.nombre || 'Proyecto';
+      }
+
+      await client.query(
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, ingreso_id, fecha)
+         VALUES ($1, 'ingreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `[Ingreso] ${concepto.trim()} (${origenText})`, id, fechaIngreso]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    let proyNombre = 'Servicios / Estudio (Sin Obra)';
+    if (proyIdNum) {
+      const pRes = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [proyIdNum]);
+      proyNombre = pRes.rows[0]?.nombre || proyNombre;
+    }
+
+    let cuentaNombre = null;
+    if (cuentaIdNum) {
+      const cRes = await pool.query('SELECT nombre FROM cuentas_tesoreria WHERE id = $1', [cuentaIdNum]);
+      cuentaNombre = cRes.rows[0]?.nombre || null;
+    }
+
+    res.json({
+      ...updateRes.rows[0],
+      proyecto_nombre: proyNombre,
+      cuenta_nombre: cuentaNombre,
+      monto: parseFloat(updateRes.rows[0].monto)
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error actualizando ingreso:', error);
+    res.status(500).json({ error: 'Error al actualizar el ingreso' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1322,10 +1629,11 @@ app.post('/api/gastos', async (req, res) => {
         `UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2`,
         [numMonto, cuentaIdNum]
       );
+      const fechaGastoMov = fecha_gasto || new Date().toISOString().split('T')[0];
       await pool.query(
-        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, gasto_id)
-         VALUES ($1, 'egreso', $2, $3, $4)`,
-        [cuentaIdNum, numMonto, `Pago de gasto: ${descripcion.trim()}`, gastoId]
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, gasto_id, fecha)
+         VALUES ($1, 'egreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `Pago de gasto: ${descripcion.trim()}`, gastoId, fechaGastoMov]
       );
     }
 
@@ -1389,11 +1697,18 @@ app.put('/api/gastos/:id', async (req, res) => {
     // Revertir descuento previo si la cuenta existía
     if (prevCuentaId) {
       await pool.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [prevMonto, prevCuentaId]);
+      await pool.query('DELETE FROM movimientos_tesoreria WHERE gasto_id = $1', [id]);
     }
 
     // Aplicar nuevo descuento si hay cuenta especificada
     if (cuentaIdNum) {
       await pool.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [numMonto, cuentaIdNum]);
+      const fechaGastoMov = fecha_gasto || new Date().toISOString().split('T')[0];
+      await pool.query(
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, gasto_id, fecha)
+         VALUES ($1, 'egreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `Pago de gasto: ${descripcion.trim()}`, id, fechaGastoMov]
+      );
     }
 
     const result = await pool.query(
@@ -1429,6 +1744,7 @@ app.delete('/api/gastos/:id', async (req, res) => {
         `UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2`,
         [parseFloat(gasto.monto), gasto.cuenta_id]
       );
+      await pool.query('DELETE FROM movimientos_tesoreria WHERE gasto_id = $1', [id]);
     }
 
     const result = await pool.query('DELETE FROM gastos WHERE id = $1 RETURNING id', [id]);
@@ -1656,9 +1972,9 @@ app.post('/api/empleados/:id/pagos', async (req, res) => {
       await client.query('UPDATE cuentas_tesoreria SET saldo = saldo - $1 WHERE id = $2', [numMonto, cuentaIdNum]);
 
       await client.query(
-        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, gasto_id)
-         VALUES ($1, 'egreso', $2, $3, $4)`,
-        [cuentaIdNum, numMonto, `Pago a Empleado (${empleado.nombre}): ${concepto.trim()}`, gastoId]
+        `INSERT INTO movimientos_tesoreria (cuenta_id, tipo, monto, concepto, gasto_id, fecha)
+         VALUES ($1, 'egreso', $2, $3, $4, $5)`,
+        [cuentaIdNum, numMonto, `Pago a Empleado (${empleado.nombre}): ${concepto.trim()}`, gastoId, fechaPago]
       );
     }
 
@@ -1707,6 +2023,7 @@ app.delete('/api/pagos-empleados/:id', async (req, res) => {
         if (gasto.cuenta_id) {
           await client.query('UPDATE cuentas_tesoreria SET saldo = saldo + $1 WHERE id = $2', [parseFloat(gasto.monto), gasto.cuenta_id]);
         }
+        await client.query('DELETE FROM movimientos_tesoreria WHERE gasto_id = $1', [pago.gasto_id]);
         await client.query('DELETE FROM gastos WHERE id = $1', [pago.gasto_id]);
       }
     }

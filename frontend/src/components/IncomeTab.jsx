@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DollarSign, Search, Plus, Trash2, Wallet, Calendar, Building2, Briefcase } from 'lucide-react';
+import { DollarSign, Search, Plus, Trash2, Pencil, Wallet, Calendar, Building2, Briefcase, Printer } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 export default function IncomeTab({
@@ -7,6 +7,7 @@ export default function IncomeTab({
   projects = [],
   tesoreriaAccounts = [],
   onOpenNewIncome,
+  onEditIncome,
   onDeleteIncome
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,14 +60,25 @@ export default function IncomeTab({
           </div>
         </div>
 
-        <button 
-          className="btn btn-primary" 
-          style={{ background: 'linear-gradient(135deg, var(--accent-emerald), #059669)', border: 'none' }}
-          onClick={onOpenNewIncome}
-        >
-          <Plus size={16} />
-          <span>Registrar Nuevo Ingreso</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary no-print"
+            onClick={() => window.print()}
+            title="Imprimir listado de ingresos filtrados"
+          >
+            <Printer size={16} />
+            <span>Imprimir</span>
+          </button>
+
+          <button 
+            className="btn btn-primary" 
+            style={{ background: 'linear-gradient(135deg, var(--accent-emerald), #059669)', border: 'none' }}
+            onClick={onOpenNewIncome}
+          >
+            <Plus size={16} />
+            <span>Registrar Nuevo Ingreso</span>
+          </button>
+        </div>
       </div>
 
       {/* Barra de Búsqueda y Filtros */}
@@ -89,7 +101,9 @@ export default function IncomeTab({
           <option value="">Todos los Orígenes ({ingresos.length})</option>
           <option value="estudio">💼 Servicios / Estudio - Sin Obra ({estudioIngresosCount})</option>
           {projects.map(p => (
-            <option key={p.id} value={p.id}>🏗️ Obra: {p.nombre}</option>
+            <option key={p.id} value={p.id}>
+              🏗️ Obra: {p.nombre}{p.cliente_nombre ? ` (${p.cliente_nombre})` : ''}
+            </option>
           ))}
         </select>
 
@@ -193,7 +207,17 @@ export default function IncomeTab({
                     <td style={{ textAlign: 'right', fontWeight: '800', color: 'var(--accent-emerald)', whiteSpace: 'nowrap', fontSize: '0.95rem' }}>
                       + {ing.moneda === 'USD' ? `US$ ${ing.monto.toLocaleString('es-AR')}` : formatCurrency(ing.monto)}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      {onEditIncome && (
+                        <button 
+                          className="btn-icon-only edit"
+                          onClick={() => onEditIncome(ing)}
+                          title="Editar ingreso"
+                          style={{ marginRight: '0.35rem' }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
                       <button 
                         className="btn-icon-only delete"
                         onClick={() => onDeleteIncome(ing.id)}

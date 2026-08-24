@@ -8,7 +8,8 @@ export default function NewIncomeModal({
   onSave,
   projects = [],
   tesoreriaAccounts = [],
-  defaultProjectId = null
+  defaultProjectId = null,
+  incomeToEdit = null
 }) {
   const [concepto, setConcepto] = useState('');
   const [monto, setMonto] = useState('');
@@ -22,23 +23,34 @@ export default function NewIncomeModal({
 
   useEffect(() => {
     if (isOpen) {
-      setConcepto('');
-      setMonto('');
-      setMoneda('ARS');
-      setTipoOrigen(defaultProjectId ? 'proyecto' : 'estudio');
-      setProyectoId(defaultProjectId || '');
-      setFecha(new Date().toISOString().split('T')[0]);
-      setErrorMsg('');
+      if (incomeToEdit) {
+        setConcepto(incomeToEdit.concepto || '');
+        setMonto(incomeToEdit.monto ? incomeToEdit.monto.toString() : '');
+        setMoneda(incomeToEdit.moneda || 'ARS');
+        setTipoOrigen(incomeToEdit.proyecto_id ? 'proyecto' : 'estudio');
+        setProyectoId(incomeToEdit.proyecto_id ? incomeToEdit.proyecto_id.toString() : (defaultProjectId ? defaultProjectId.toString() : ''));
+        setCuentaId(incomeToEdit.cuenta_id ? incomeToEdit.cuenta_id.toString() : '');
+        setFecha(incomeToEdit.fecha ? incomeToEdit.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+        setErrorMsg('');
+      } else {
+        setConcepto('');
+        setMonto('');
+        setMoneda('ARS');
+        setTipoOrigen(defaultProjectId ? 'proyecto' : 'estudio');
+        setProyectoId(defaultProjectId ? defaultProjectId.toString() : '');
+        setFecha(new Date().toISOString().split('T')[0]);
+        setErrorMsg('');
 
-      // Auto-seleccionar primera cuenta de tesorería compatible
-      const firstAccount = tesoreriaAccounts.find(c => c.moneda === 'ARS');
-      if (firstAccount) {
-        setCuentaId(firstAccount.id.toString());
-      } else if (tesoreriaAccounts.length > 0) {
-        setCuentaId(tesoreriaAccounts[0].id.toString());
+        // Auto-seleccionar primera cuenta de tesorería compatible
+        const firstAccount = tesoreriaAccounts.find(c => c.moneda === 'ARS');
+        if (firstAccount) {
+          setCuentaId(firstAccount.id.toString());
+        } else if (tesoreriaAccounts.length > 0) {
+          setCuentaId(tesoreriaAccounts[0].id.toString());
+        }
       }
     }
-  }, [isOpen, defaultProjectId, tesoreriaAccounts]);
+  }, [isOpen, defaultProjectId, tesoreriaAccounts, incomeToEdit]);
 
   // Actualizar cuenta por defecto si cambia la moneda
   useEffect(() => {
@@ -73,6 +85,7 @@ export default function NewIncomeModal({
     setLoading(true);
     try {
       await onSave({
+        id: incomeToEdit ? incomeToEdit.id : undefined,
         concepto: concepto.trim(),
         monto: numMonto,
         moneda,
@@ -100,7 +113,7 @@ export default function NewIncomeModal({
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <DollarSign size={24} color="var(--accent-emerald)" />
-            <h3 className="modal-title">Registrar Ingreso de Dinero</h3>
+            <h3 className="modal-title">{incomeToEdit ? 'Editar Ingreso de Dinero' : 'Registrar Ingreso de Dinero'}</h3>
           </div>
           <button className="btn-icon-only" onClick={onClose}>
             <X size={18} />
@@ -193,7 +206,9 @@ export default function NewIncomeModal({
                 >
                   <option value="">-- Seleccionar Proyecto --</option>
                   {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}{p.cliente_nombre ? ` (${p.cliente_nombre})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -275,7 +290,7 @@ export default function NewIncomeModal({
               disabled={loading}
             >
               <DollarSign size={16} />
-              <span>{loading ? 'Guardando...' : 'Registrar Ingreso'}</span>
+              <span>{loading ? 'Guardando...' : (incomeToEdit ? 'Guardar Cambios' : 'Registrar Ingreso')}</span>
             </button>
           </div>
         </form>

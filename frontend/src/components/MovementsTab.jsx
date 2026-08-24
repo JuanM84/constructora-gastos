@@ -11,14 +11,19 @@ import {
   DollarSign,
   UserCheck,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  Printer,
+  Pencil,
+  Trash2
 } from 'lucide-react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export default function MovementsTab({ 
   movimientos = [], 
   tesoreriaAccounts = [],
-  onOpenNewMovimiento 
+  onOpenNewMovimiento,
+  onEditCambio,
+  onDeleteMovimiento
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('ALL');
@@ -101,14 +106,25 @@ export default function MovementsTab({
             </div>
           </div>
 
-          <button 
-            className="btn btn-primary" 
-            style={{ background: 'linear-gradient(135deg, var(--accent-emerald), #059669)', gap: '0.5rem' }}
-            onClick={onOpenNewMovimiento}
-          >
-            <ArrowLeftRight size={16} />
-            <span>Registrar Nuevo Movimiento</span>
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button 
+              className="btn btn-secondary no-print"
+              onClick={() => window.print()}
+              title="Imprimir movimientos filtrados"
+            >
+              <Printer size={16} />
+              <span>Imprimir</span>
+            </button>
+
+            <button 
+              className="btn btn-primary" 
+              style={{ background: 'linear-gradient(135deg, var(--accent-emerald), #059669)', gap: '0.5rem' }}
+              onClick={onOpenNewMovimiento}
+            >
+              <ArrowLeftRight size={16} />
+              <span>Registrar Nuevo Movimiento</span>
+            </button>
+          </div>
         </div>
 
         {/* Tarjetas Estadísticas */}
@@ -232,14 +248,15 @@ export default function MovementsTab({
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="table" style={{ width: '100%', margin: 0 }}>
+            <table className="custom-table" style={{ width: '100%', margin: 0 }}>
               <thead>
                 <tr>
                   <th style={{ paddingLeft: '1.25rem' }}>Fecha</th>
                   <th>Operación</th>
                   <th>Cuenta Afectada</th>
                   <th>Concepto / Detalle / Referencia</th>
-                  <th style={{ textAlign: 'right', paddingRight: '1.25rem' }}>Monto</th>
+                  <th style={{ textAlign: 'right' }}>Monto</th>
+                  <th style={{ textAlign: 'center', width: '100px', paddingRight: '1rem' }} className="no-print">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,11 +265,7 @@ export default function MovementsTab({
                   const IconComp = cat.icon;
                   const isIngreso = mov.tipo === 'ingreso';
                   const isUSD = mov.moneda === 'USD';
-                  const fechaStr = new Date(mov.fecha).toLocaleDateString('es-AR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                  });
+                  const fechaStr = formatDate(mov.fecha);
 
                   // Resaltar referencias si existen en el texto
                   const conceptoText = mov.concepto || '';
@@ -324,7 +337,7 @@ export default function MovementsTab({
                         </div>
                       </td>
 
-                      <td style={{ textAlign: 'right', paddingRight: '1.25rem', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
                           {isIngreso ? <ArrowDownLeft size={16} color="var(--accent-emerald)" /> : <ArrowUpRight size={16} color="var(--accent-rose)" />}
                           <strong style={{
@@ -333,6 +346,34 @@ export default function MovementsTab({
                           }}>
                             {isIngreso ? '+' : '-'} {isUSD ? `US$ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : formatCurrency(mov.monto)}
                           </strong>
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', paddingRight: '1rem' }} className="no-print">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                          {cat.key === 'CAMBIO' && (
+                            <button 
+                              className="btn-icon-only edit" 
+                              onClick={() => onEditCambio && onEditCambio(mov)}
+                              title="Editar cambio de moneda"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+
+                          {!mov.ingreso_id && !mov.gasto_id ? (
+                            <button 
+                              className="btn-icon-only delete" 
+                              onClick={() => onDeleteMovimiento && onDeleteMovimiento(mov)}
+                              title="Eliminar movimiento (revertir saldos)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              Comprobante
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>

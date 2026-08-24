@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, HardHat, Briefcase, Receipt, ArrowLeftRight, DollarSign } from 'lucide-react';
+import { Wallet, HardHat, Briefcase, Receipt, ArrowLeftRight, DollarSign, Printer } from 'lucide-react';
 import ExpensesTab from './ExpensesTab';
 import MovementsTab from './MovementsTab';
 import IncomeTab from './IncomeTab';
@@ -17,7 +17,10 @@ export default function CajaTab({
   onDeleteExpense,
   onOpenNewMovimiento,
   onOpenNewIncome,
-  onDeleteIncome
+  onEditIncome,
+  onDeleteIncome,
+  onEditCambio,
+  onDeleteMovimiento
 }) {
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
 
@@ -33,10 +36,42 @@ export default function CajaTab({
   const todosCount = expenses.length;
   const movimientosCount = movimientos.length;
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const getSubTabTitle = () => {
+    switch (activeSubTab) {
+      case 'obras': return 'Gastos de Obras';
+      case 'estudio': return 'Gastos de Estudio';
+      case 'ingresos': return 'Registro de Ingresos';
+      case 'todos': return 'Registro General de Gastos';
+      case 'movimientos': return 'Movimientos de Tesorería';
+      default: return 'Caja y Movimientos';
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      
+      {/* CABECERA EXCLUSIVA PARA IMPRESIÓN */}
+      <div className="print-only-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '20px' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '18pt', color: '#000', fontWeight: '800' }}>ESTUDIO LK S.R.L.</h1>
+            <h3 style={{ margin: '4px 0 0 0', fontSize: '12pt', color: '#333', fontWeight: '600' }}>
+              Arquitectura & Construcción — Reporte Auditado: {getSubTabTitle()}
+            </h3>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '9pt', color: '#444', lineHeight: '1.4' }}>
+            <div><strong>Módulo:</strong> Gestión de Caja & Tesorería</div>
+            <div><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString('es-AR')} {new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Encabezado General de Caja y Sub-Pestañas */}
-      <div className="panel-card" style={{ padding: '1.25rem 1.5rem', marginBottom: 0 }}>
+      <div className="panel-card no-print" style={{ padding: '1.25rem 1.5rem', marginBottom: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
@@ -49,6 +84,15 @@ export default function CajaTab({
               Módulo central de tesorería: auditoría de gastos de obras, gastos del estudio, ingresos varios y movimientos de cuentas bancarias/efectivo.
             </p>
           </div>
+
+          <button 
+            className="btn btn-secondary no-print"
+            onClick={handlePrint}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem' }}
+          >
+            <Printer size={16} color="var(--accent-blue)" />
+            <span>Imprimir Vista Filtrada</span>
+          </button>
         </div>
 
         {/* Sub-Pestañas de la página /caja */}
@@ -185,6 +229,7 @@ export default function CajaTab({
           projects={projects}
           tesoreriaAccounts={tesoreriaAccounts}
           onOpenNewIncome={onOpenNewIncome}
+          onEditIncome={onEditIncome}
           onDeleteIncome={onDeleteIncome}
         />
       )}
@@ -194,6 +239,8 @@ export default function CajaTab({
           movimientos={movimientos}
           tesoreriaAccounts={tesoreriaAccounts}
           onOpenNewMovimiento={onOpenNewMovimiento}
+          onEditCambio={onEditCambio}
+          onDeleteMovimiento={onDeleteMovimiento}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { X, ArrowLeftRight, Landmark, Banknote, RefreshCw, Plus, Trash2, Info, C
 import CurrencyInput from './CurrencyInput';
 import { formatCurrency } from '../utils/formatters';
 
-export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio, tesoreriaAccounts = [] }) {
+export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio, tesoreriaAccounts = [], cambioToEdit = null }) {
   const [tipoPreset, setTipoPreset] = useState('transferencia'); // 'transferencia', 'deposito', 'extraccion', 'cambio'
 
   // Estados para Movimiento Simple (Transferencia, Depósito, Extracción)
@@ -76,15 +76,30 @@ export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio,
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (isOpen) {
-      setMonto('');
-      setMontoUSD('');
-      setCotizacion('');
-      setConcepto('');
-      setFecha(new Date().toISOString().split('T')[0]);
-      handleSelectPreset('transferencia');
+      if (cambioToEdit) {
+        setTipoPreset('cambio');
+        setCuentaOrigenUSDId(String(cambioToEdit.cuenta_origen_id || ''));
+        setMontoUSD(String(cambioToEdit.monto_usd || ''));
+        setCotizacion(String(cambioToEdit.cotizacion || ''));
+        if (Array.isArray(cambioToEdit.distribucion) && cambioToEdit.distribucion.length > 0) {
+          setDistribucion(cambioToEdit.distribucion.map(d => ({
+            cuenta_id: String(d.cuenta_id),
+            monto_ars: String(d.monto_ars),
+            referencia: d.referencia || ''
+          })));
+        }
+        setFecha(cambioToEdit.fecha ? cambioToEdit.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+      } else {
+        setMonto('');
+        setMontoUSD('');
+        setCotizacion('');
+        setConcepto('');
+        setFecha(new Date().toISOString().split('T')[0]);
+        handleSelectPreset('transferencia');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, tesoreriaAccounts]);
+  }, [isOpen, cambioToEdit, tesoreriaAccounts]);
 
   if (!isOpen) return null;
 
@@ -145,6 +160,7 @@ export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio,
       }
 
       onSaveCambio({
+        operacion_id: cambioToEdit?.operacion_id || cambioToEdit?.id,
         cuenta_origen_id: parseInt(cuentaOrigenUSDId, 10),
         monto_usd: montoUsdNum,
         cotizacion: cotizNum,
@@ -187,7 +203,7 @@ export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio,
         <div className="modal-header">
           <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {tipoPreset === 'cambio' ? <RefreshCw size={20} color="var(--accent-amber)" /> : <ArrowLeftRight size={20} color="var(--accent-emerald)" />}
-            <span>Registrar Movimiento de Tesorería</span>
+            <span>{cambioToEdit ? 'Editar Cambio de Moneda' : (tipoPreset === 'cambio' ? 'Registrar Cambio de Moneda' : 'Registrar Movimiento de Tesorería')}</span>
           </div>
           <button className="btn-icon-only" onClick={onClose}>
             <X size={18} />
@@ -607,7 +623,7 @@ export default function MovimientoModal({ isOpen, onClose, onSave, onSaveCambio,
               }}
             >
               {tipoPreset === 'cambio' ? <RefreshCw size={15} /> : <ArrowLeftRight size={15} />}
-              <span>{tipoPreset === 'cambio' ? 'Confirmar Cambio de Moneda' : 'Confirmar Movimiento'}</span>
+              <span>{cambioToEdit ? 'Guardar Cambios de Moneda' : (tipoPreset === 'cambio' ? 'Confirmar Cambio de Moneda' : 'Confirmar Movimiento')}</span>
             </button>
           </div>
         </form>
