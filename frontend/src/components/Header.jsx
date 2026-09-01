@@ -1,11 +1,22 @@
-import { HardHat, PlusCircle, DollarSign, Wallet, ArrowLeftRight } from 'lucide-react';
+import { HardHat, PlusCircle, DollarSign, Wallet, ArrowLeftRight, LogOut, User, Shield } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
-export default function Header({ isOnline, tesoreriaAccounts = [], onOpenTesoreria, onOpenNewProject, onOpenNewExpense, onOpenNewMovimiento }) {
+export default function Header({
+  isOnline,
+  tesoreriaAccounts = [],
+  currentUser = null,
+  onLogout,
+  onOpenTesoreria,
+  onOpenNewProject,
+  onOpenNewExpense,
+  onOpenNewMovimiento
+}) {
   // Suma de cuentas según tipo (la cuenta Banco refleja la suma de TODAS las cuentas bancarias del estudio)
   const efecARS = tesoreriaAccounts.filter(a => a.tipo === 'efectivo_ars').reduce((acc, a) => acc + (parseFloat(a.saldo) || 0), 0);
   const efecUSD = tesoreriaAccounts.filter(a => a.tipo === 'efectivo_usd').reduce((acc, a) => acc + (parseFloat(a.saldo) || 0), 0);
   const bancoARS = tesoreriaAccounts.filter(a => a.tipo === 'banco_ars').reduce((acc, a) => acc + (parseFloat(a.saldo) || 0), 0);
+
+  const isAdmin = currentUser?.rol === 'admin';
 
   return (
     <header className="app-header">
@@ -60,7 +71,7 @@ export default function Header({ isOnline, tesoreriaAccounts = [], onOpenTesorer
           </div>
         </div>
 
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div className={`server-status ${isOnline ? '' : 'offline'}`}>
             <span className="status-dot"></span>
             <span>{isOnline ? 'Online' : 'Desconectado'}</span>
@@ -84,6 +95,79 @@ export default function Header({ isOnline, tesoreriaAccounts = [], onOpenTesorer
             <DollarSign size={15} />
             <span>Registrar Gasto</span>
           </button>
+
+          {/* Perfil de Usuario y Logout */}
+          {currentUser && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              marginLeft: '0.5rem',
+              paddingLeft: '0.75rem',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.15)'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.85rem'
+              }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: isAdmin ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '700',
+                  fontSize: '0.85rem'
+                }}>
+                  {currentUser.nombre?.charAt(0).toUpperCase() || <User size={16} />}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#f8fafc', lineHeight: 1.2 }}>
+                    {currentUser.nombre}
+                  </span>
+                  <span style={{
+                    fontSize: '0.7rem',
+                    color: isAdmin ? '#fbbf24' : '#60a5fa',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.2rem'
+                  }}>
+                    {isAdmin && <Shield size={10} />}
+                    {isAdmin ? 'Admin' : 'Usuario'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={onLogout}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#fca5a5',
+                  padding: '0.45rem 0.65rem',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  marginLeft: '0.25rem'
+                }}
+                title="Cerrar Sesión"
+              >
+                <LogOut size={14} />
+                <span>Salir</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

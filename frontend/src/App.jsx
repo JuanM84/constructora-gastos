@@ -10,6 +10,9 @@ import CajaTab from './components/CajaTab';
 
 import EmployeesTab from './components/EmployeesTab';
 import StatisticsTab from './components/StatisticsTab';
+import UsersTab from './components/UsersTab';
+import LoginScreen from './components/LoginScreen';
+import { getCurrentUser, clearAuthData, authFetch } from './utils/auth';
 
 import ProjectModal from './components/ProjectModal';
 import ProjectDetailModal from './components/ProjectDetailModal';
@@ -38,11 +41,19 @@ import {
   HardHat,
   Briefcase,
   Wallet,
-  BarChart3
+  BarChart3,
+  Shield
 } from 'lucide-react';
 import { API_BASE } from './config';
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(getCurrentUser);
+
+  const handleLogout = () => {
+    clearAuthData();
+    setCurrentUser(null);
+  };
+
   const getTabFromPath = () => {
     const p = window.location.pathname;
     if (p === '/caja') return 'caja';
@@ -51,10 +62,12 @@ function App() {
     if (p === '/empleados') return 'empleados';
     if (p === '/estadisticas') return 'estadisticas';
     if (p === '/configuracion') return 'configuracion';
+    if (p === '/usuarios') return 'usuarios';
     return 'dashboard';
   };
 
   const [activeTab, setActiveTab] = useState(getTabFromPath);
+
   const [cajaSubTab, setCajaSubTab] = useState('obras');
 
   const navigateTab = useCallback((tab, subTab = null) => {
@@ -67,6 +80,7 @@ function App() {
     else if (tab === 'empleados') path = '/empleados';
     else if (tab === 'estadisticas') path = '/estadisticas';
     else if (tab === 'configuracion') path = '/configuracion';
+    else if (tab === 'usuarios') path = '/usuarios';
 
     if (window.location.pathname !== path) {
       window.history.pushState({ tab, subTab }, '', path);
@@ -161,18 +175,20 @@ function App() {
 
   // Carga masiva de datos desde el backend
   const loadAllData = useCallback(async () => {
+    if (!getCurrentUser()) return;
     try {
       const [sumRes, proyRes, gasRes, catRes, cliRes, tesRes, movRes, ingRes, empRes] = await Promise.all([
-        fetch(`${API_BASE}/dashboard/summary`),
-        fetch(`${API_BASE}/proyectos`),
-        fetch(`${API_BASE}/gastos`),
-        fetch(`${API_BASE}/categorias`),
-        fetch(`${API_BASE}/clientes`),
-        fetch(`${API_BASE}/tesoreria`),
-        fetch(`${API_BASE}/tesoreria/movimientos`),
-        fetch(`${API_BASE}/ingresos`),
-        fetch(`${API_BASE}/empleados`)
+        authFetch(`${API_BASE}/dashboard/summary`),
+        authFetch(`${API_BASE}/proyectos`),
+        authFetch(`${API_BASE}/gastos`),
+        authFetch(`${API_BASE}/categorias`),
+        authFetch(`${API_BASE}/clientes`),
+        authFetch(`${API_BASE}/tesoreria`),
+        authFetch(`${API_BASE}/tesoreria/movimientos`),
+        authFetch(`${API_BASE}/ingresos`),
+        authFetch(`${API_BASE}/empleados`)
       ]);
+
 
       if (sumRes.ok && proyRes.ok && gasRes.ok && catRes.ok && cliRes.ok && tesRes.ok && movRes.ok && ingRes.ok && empRes.ok) {
         const sumData = await sumRes.json();
@@ -859,11 +875,17 @@ function App() {
     }
   };
 
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={(user) => { setCurrentUser(user); loadAllData(); }} />;
+  }
+
   return (
     <div>
       <Header
         isOnline={isOnline}
         tesoreriaAccounts={tesoreriaAccounts}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         onOpenTesoreria={() => navigateTab('configuracion')}
         onOpenNewProject={() => { setProjectToEdit(null); setIsProjectModalOpen(true); }}
         onOpenNewExpense={() => handleOpenNewExpense(false)}
@@ -928,7 +950,23 @@ function App() {
             <Settings size={18} />
             <span>Configuración</span>
           </button>
+
+          {currentUser?.rol === 'admin' && (
+            <button
+              className={`tab-btn ${activeTab === 'usuarios' ? 'active' : ''}`}
+              onClick={() => navigateTab('usuarios')}
+              style={{
+                border: '1px solid rgba(217, 119, 6, 0.3)',
+                background: activeTab === 'usuarios' ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.08)',
+                color: '#f59e0b'
+              }}
+            >
+              <Shield size={18} />
+              <span>Usuarios</span>
+            </button>
+          )}
         </div>
+
 
         {/* Alerta de Desconexión */}
         {!isOnline && (
@@ -1038,6 +1076,10 @@ function App() {
             onDeleteCategory={handleDeleteCategory}
             onOpenNewMovimiento={() => setIsMovimientoModalOpen(true)}
           />
+        )}
+
+        {activeTab === 'usuarios' && currentUser?.rol === 'admin' && (
+          <UsersTab showToast={showToast} />
         )}
       </div>
 

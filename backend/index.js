@@ -1,9 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: __dirname + '/.env' });
 
 const app = express();
+const JWT_SECRET = process.env.JWT_SECRET || 'constructora_secret_key_2026_super_secure';
 
 // Middlewares
 app.use(cors());
@@ -24,6 +27,16 @@ pool.on('error', (err) => {
 const initCompleteDB = async () => {
   try {
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(100) NOT NULL,
+          email VARCHAR(100) NOT NULL UNIQUE,
+          password VARCHAR(255) NOT NULL,
+          rol VARCHAR(20) NOT NULL DEFAULT 'usuario',
+          activo BOOLEAN DEFAULT TRUE,
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS clientes (
           id SERIAL PRIMARY KEY,
           nombre VARCHAR(100) NOT NULL,
@@ -165,7 +178,228 @@ const initCompleteDB = async () => {
     console.error('Error al inicializar la base de datos:', err);
   }
 };
-initCompleteDB();
+
+// Verificar y crear usuario Administrador por defecto
+const initAdminUser = async () => {
+  try {
+    const adminCheck = await pool.query("SELECT * FROM usuarios WHERE rol = 'admin'");
+    if (adminCheck.rows.length === 0) {
+      const defaultPass = 'admin123';
+      const hash = await bcrypt.hash(defaultPass, 10);
+      await pool.query(
+        `INSERT INTO usuarios (nombre, email, password, rol, activo)
+         VALUES ($1, $2, $3, 'admin', TRUE)`,
+        ['Administrador Principal', 'admin@constructora.com', hash]
+      );
+      console.log('👤 Usuario Administrador por defecto creado: admin@constructora.com / admin123');
+    }
+  } catch (err) {
+    console.error('Error al verificar usuario admin por defecto:', err);
+  }
+};
+initCompleteDB().then(() => initAdminUser());
+
+// ---------------------------------------------------
+// MIDDLEWARES DE AUTENTICACION Y ROLES
+// ---------------------------------------------------
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acceso no autorizado. Debe iniciar sesión.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Sesión expirada o token inválido.' });
+  }
+};
+
+const adminMiddleware = (req, res, next) => {
+  if (!req.user || req.user.rol !== 'admin') {
+    return res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de Administrador.' });
+  }
+  next();
+};
+
+// ---------------------------------------------------
+// RUTAS DE AUTENTICACIÓN (LOGIN & PERFIL)
+// ---------------------------------------------------
+
+// 1. Iniciar Sesión (Login)
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
+  }
+
+  try {
+    const userRes = await pool.query('SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ error: 'Credenciales inválidas. Verifique el email o la contraseña.' });
+    }
+
+    const user = userRes.rows[0];
+
+    if (!user.activo) {
+      return res.status(403).json({ error: 'Esta cuenta de usuario se encuentra desactivada. Contacte al Administrador.' });
+    }
+
+    const validPass = await bcrypt.compare(password, user.password);
+    if (!validPass) {
+      return res.status(401).json({ error: 'Credenciales inválidas. Verifique el email o la contraseña.' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol
+      }
+    });
+  } catch (err) {
+    console.error('Error en login:', err);
+    res.status(500).json({ error: 'Error interno al procesar el inicio de sesión' });
+  }
+});
+
+// 2. Obtener usuario de la sesión actual
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const userRes = await pool.query('SELECT id, nombre, email, rol, activo, creado_en FROM usuarios WHERE id = $1', [req.user.id]);
+    if (userRes.rows.length === 0 || !userRes.rows[0].activo) {
+      return res.status(401).json({ error: 'Usuario no encontrado o inactivo' });
+    }
+    res.json(userRes.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener datos de la sesión' });
+  }
+});
+
+// ---------------------------------------------------
+// RUTAS DE GESTIÓN DE USUARIOS (SOLO ADMINISTRADOR)
+// ---------------------------------------------------
+
+// Listar todos los usuarios
+app.get('/api/usuarios', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, nombre, email, rol, activo, creado_en FROM usuarios ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error obteniendo usuarios:', err);
+    res.status(500).json({ error: 'Error al obtener el listado de usuarios' });
+  }
+});
+
+// Crear usuario nuevo
+app.post('/api/usuarios', authMiddleware, adminMiddleware, async (req, res) => {
+  const { nombre, email, password, rol } = req.body;
+
+  if (!nombre || !nombre.trim() || !email || !email.trim() || !password) {
+    return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+  }
+
+  const rolVal = rol === 'admin' ? 'admin' : 'usuario';
+
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, email, password, rol, activo)
+       VALUES ($1, LOWER($2), $3, $4, TRUE)
+       RETURNING id, nombre, email, rol, activo, creado_en`,
+      [nombre.trim(), email.trim(), hash, rolVal]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Ya existe un usuario registrado con ese email' });
+    }
+    console.error('Error creando usuario:', err);
+    res.status(500).json({ error: 'Error al registrar el nuevo usuario' });
+  }
+});
+
+// Editar datos / rol / estado / contraseña de usuario
+app.put('/api/usuarios/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, email, rol, activo, password } = req.body;
+
+  if (!nombre || !nombre.trim() || !email || !email.trim()) {
+    return res.status(400).json({ error: 'Nombre y email son obligatorios' });
+  }
+
+  const rolVal = rol === 'admin' ? 'admin' : 'usuario';
+  const activoVal = activo !== undefined ? Boolean(activo) : true;
+
+  try {
+    let result;
+    if (password && password.trim().length > 0) {
+      const hash = await bcrypt.hash(password.trim(), 10);
+      result = await pool.query(
+        `UPDATE usuarios
+         SET nombre = $1, email = LOWER($2), rol = $3, activo = $4, password = $5
+         WHERE id = $6
+         RETURNING id, nombre, email, rol, activo, creado_en`,
+        [nombre.trim(), email.trim(), rolVal, activoVal, hash, id]
+      );
+    } else {
+      result = await pool.query(
+        `UPDATE usuarios
+         SET nombre = $1, email = LOWER($2), rol = $3, activo = $4
+         WHERE id = $5
+         RETURNING id, nombre, email, rol, activo, creado_en`,
+        [nombre.trim(), email.trim(), rolVal, activoVal, id]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Ya existe otro usuario registrado con ese email' });
+    }
+    console.error('Error modificando usuario:', err);
+    res.status(500).json({ error: 'Error al actualizar el usuario' });
+  }
+});
+
+// Eliminar usuario
+app.delete('/api/usuarios/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const targetId = parseInt(id, 10);
+
+  if (req.user.id === targetId) {
+    return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta de usuario en uso' });
+  }
+
+  try {
+    const result = await pool.query('DELETE FROM usuarios WHERE id = $1 RETURNING id', [targetId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({ mensaje: 'Usuario eliminado correctamente', id: targetId });
+  } catch (err) {
+    console.error('Error eliminando usuario:', err);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+});
 
 // ---------------------------------------------------
 // RUTA DE PRUEBA Y SALUD
