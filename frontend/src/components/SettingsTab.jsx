@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Settings, Building2, Tag, Plus, Edit2, Trash2, Wallet, DollarSign, ArrowLeftRight } from 'lucide-react';
+import { Settings, Building2, Tag, Plus, Edit2, Trash2, Wallet, DollarSign, ArrowLeftRight, Shield } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
+import UsersTab from './UsersTab';
 
 export default function SettingsTab({ 
   tesoreriaAccounts = [], 
   categories = [],
+  currentUser = null,
+  showToast,
   onOpenNewBankAccount,
   onEditBankAccount,
   onAdjustBalanceAccount,
@@ -13,7 +16,8 @@ export default function SettingsTab({
   onDeleteCategory,
   onOpenNewMovimiento
 }) {
-  const [subTab, setSubTab] = useState('bancos'); // 'bancos', 'categorias'
+  const [subTab, setSubTab] = useState('bancos'); // 'bancos', 'categorias', 'usuarios'
+  const isAdmin = currentUser?.rol === 'admin';
 
   // Totales
   const totalBancosARS = tesoreriaAccounts.filter(a => a.tipo === 'banco_ars').reduce((acc, a) => acc + (parseFloat(a.saldo) || 0), 0);
@@ -30,7 +34,7 @@ export default function SettingsTab({
         </div>
       </div>
 
-      {/* Navegación interna entre Cuentas Bancarias y Categorías */}
+      {/* Navegación interna entre Cuentas Bancarias, Categorías y Usuarios (Admin) */}
       <div className="nav-tabs" style={{ marginBottom: '1.5rem' }}>
         <button 
           className={`tab-btn ${subTab === 'bancos' ? 'active' : ''}`}
@@ -47,6 +51,16 @@ export default function SettingsTab({
           <Tag size={16} />
           <span>Categorías de Gastos ({categories.length})</span>
         </button>
+
+        {isAdmin && (
+          <button 
+            className={`tab-btn admin-tab ${subTab === 'usuarios' ? 'active' : ''}`}
+            onClick={() => setSubTab('usuarios')}
+          >
+            <Shield size={16} />
+            <span>Gestión de Usuarios (Admin)</span>
+          </button>
+        )}
       </div>
 
       {/* SECCION 1: CUENTAS BANCARIAS Y TESORERIA */}
@@ -138,7 +152,7 @@ export default function SettingsTab({
                     padding: '1.25rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     boxShadow: 'var(--shadow-main)'
                   }}
                 >
@@ -171,7 +185,7 @@ export default function SettingsTab({
                       borderRadius: 'var(--radius-md)',
                       marginTop: '0.75rem',
                       display: 'flex',
-                      justify: 'space-between',
+                      justifyContent: 'space-between',
                       alignItems: 'center'
                     }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Saldo Disponible</span>
@@ -266,6 +280,11 @@ export default function SettingsTab({
             ))}
           </div>
         </div>
+      )}
+
+      {/* SECCION 3: GESTION DE USUARIOS (Exclusivo Administradores) */}
+      {subTab === 'usuarios' && isAdmin && (
+        <UsersTab showToast={showToast} />
       )}
 
     </div>

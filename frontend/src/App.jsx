@@ -950,16 +950,6 @@ function App() {
             <Settings size={18} />
             <span>Configuración</span>
           </button>
-
-          {currentUser?.rol === 'admin' && (
-            <button
-              className={`tab-btn admin-tab ${activeTab === 'usuarios' ? 'active' : ''}`}
-              onClick={() => navigateTab('usuarios')}
-            >
-              <Shield size={18} />
-              <span>Usuarios</span>
-            </button>
-          )}
         </div>
 
 
@@ -1063,6 +1053,8 @@ function App() {
           <SettingsTab
             tesoreriaAccounts={tesoreriaAccounts}
             categories={categories}
+            currentUser={currentUser}
+            showToast={showToast}
             onOpenNewBankAccount={() => { setAccountToEdit(null); setIsBankAccountModalOpen(true); }}
             onEditBankAccount={(acc) => { setAccountToEdit(acc); setIsBankAccountModalOpen(true); }}
             onAdjustBalanceAccount={() => setIsTesoreriaModalOpen(true)}
@@ -1071,10 +1063,6 @@ function App() {
             onDeleteCategory={handleDeleteCategory}
             onOpenNewMovimiento={() => setIsMovimientoModalOpen(true)}
           />
-        )}
-
-        {activeTab === 'usuarios' && currentUser?.rol === 'admin' && (
-          <UsersTab showToast={showToast} />
         )}
       </div>
 

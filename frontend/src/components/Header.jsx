@@ -19,10 +19,10 @@ export default function Header({
   const isAdmin = currentUser?.rol === 'admin';
 
   return (
-    <header className="app-header" style={{ padding: '0.85rem 0' }}>
-      <div className="header-inner" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+    <header className="app-header" style={{ padding: '0.75rem 0' }}>
+      <div className="header-inner" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         
-        {/* FILA SUPERIOR: Logo a la izquierda | Estado Servidor y Perfil de Usuario a la derecha (Rectángulo Violeta) */}
+        {/* FILA 1: Logo Marca (Izquierda) | Resumen de Tesorería (Derecha) */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '1rem' }}>
           
           {/* Logo Marca */}
@@ -36,87 +36,7 @@ export default function Header({
             </div>
           </div>
 
-          {/* Estado Servidor + Perfil de Usuario Justificado a la Derecha */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-            <div className={`server-status ${isOnline ? '' : 'offline'}`}>
-              <span className="status-dot"></span>
-              <span>{isOnline ? 'Online' : 'Desconectado'}</span>
-            </div>
-
-            {currentUser && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid var(--border-color)',
-                padding: '0.4rem 0.75rem',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)'
-              }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: isAdmin ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: '700',
-                  fontSize: '0.85rem'
-                }}>
-                  {currentUser.nombre?.charAt(0).toUpperCase() || <User size={16} />}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#f8fafc', lineHeight: 1.2 }}>
-                    {currentUser.nombre}
-                  </span>
-                  <span style={{
-                    fontSize: '0.7rem',
-                    color: isAdmin ? '#fbbf24' : '#60a5fa',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.2rem'
-                  }}>
-                    {isAdmin && <Shield size={10} />}
-                    {isAdmin ? 'Admin' : 'Usuario'}
-                  </span>
-                </div>
-
-                <button
-                  onClick={onLogout}
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#fca5a5',
-                    padding: '0.35rem 0.6rem',
-                    borderRadius: '0.5rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.775rem',
-                    fontWeight: '600',
-                    marginLeft: '0.25rem',
-                    transition: 'all 0.2s ease'
-                  }}
-                  title="Cerrar Sesión"
-                >
-                  <LogOut size={14} />
-                  <span>Salir</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* FILA INFERIOR: Resumen de Tesorería (Izquierda) y Botones de Acción (Derecha) */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-          
-          {/* Widget de Tesorería */}
+          {/* Widget de Tesorería (Alineado a la Derecha en Fila 1) */}
           <div
             onClick={onOpenTesoreria}
             style={{
@@ -129,7 +49,8 @@ export default function Header({
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              marginLeft: 'auto'
             }}
             title="Hacé clic para gestionar o ajustar los saldos de Tesorería"
           >
@@ -156,8 +77,18 @@ export default function Header({
             </div>
           </div>
 
-          {/* Botones de Acción */}
+        </div>
+
+        {/* FILA 2: Online + Botones de Acción (Izquierda) | Perfil de Usuario (Derecha - Ubicación Violeta) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.65rem' }}>
+          
+          {/* Izquierda: Estado Servidor + Botones de Acción */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div className={`server-status ${isOnline ? '' : 'offline'}`}>
+              <span className="status-dot"></span>
+              <span>{isOnline ? 'Online' : 'Desconectado'}</span>
+            </div>
+
             <button className="btn btn-secondary" onClick={onOpenNewProject}>
               <PlusCircle size={15} />
               <span>Nuevo Proyecto</span>
@@ -177,6 +108,77 @@ export default function Header({
               <span>Registrar Gasto</span>
             </button>
           </div>
+
+          {/* Derecha: Datos del Usuario Logueado (Justificado a la derecha en el rectángulo violeta) */}
+          {currentUser && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid var(--border-color)',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+              marginLeft: 'auto'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: isAdmin ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '700',
+                fontSize: '0.85rem'
+              }}>
+                {currentUser.nombre?.charAt(0).toUpperCase() || <User size={16} />}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#f8fafc', lineHeight: 1.2 }}>
+                  {currentUser.nombre}
+                </span>
+                <span style={{
+                  fontSize: '0.7rem',
+                  color: isAdmin ? '#fbbf24' : '#60a5fa',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.2rem'
+                }}>
+                  {isAdmin && <Shield size={10} />}
+                  {isAdmin ? 'Admin' : 'Usuario'}
+                </span>
+              </div>
+
+              <button
+                onClick={onLogout}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#fca5a5',
+                  padding: '0.35rem 0.6rem',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.775rem',
+                  fontWeight: '600',
+                  marginLeft: '0.25rem',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Cerrar Sesión"
+              >
+                <LogOut size={14} />
+                <span>Salir</span>
+              </button>
+            </div>
+          )}
+
         </div>
 
       </div>
