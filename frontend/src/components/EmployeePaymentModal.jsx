@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, DollarSign, Wallet, Calendar, Building2, UserCheck, HardHat } from 'lucide-react';
+import { API_BASE } from '../config';
 
 export default function EmployeePaymentModal({
   isOpen,
@@ -46,7 +47,7 @@ export default function EmployeePaymentModal({
   useEffect(() => {
     if (proyectoId) {
       setLoadingEtapas(true);
-      fetch(`http://localhost:3005/api/proyectos/${proyectoId}/detalle`)
+      fetch(`${API_BASE}/proyectos/${proyectoId}/detalle`)
         .then(res => res.json())
         .then(data => {
           setEtapas(data.etapas || []);

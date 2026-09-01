@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Receipt } from 'lucide-react';
 import CurrencyInput from './CurrencyInput';
+import { API_BASE } from '../config';
 
 export default function ExpenseModal({ isOpen, onClose, onSave, projects, categories, tesoreriaAccounts = [], expenseToEdit, defaultProjectId, defaultEsEstudio = false }) {
   const [esGastoEstudio, setEsGastoEstudio] = useState(false);
@@ -19,7 +20,7 @@ export default function ExpenseModal({ isOpen, onClose, onSave, projects, catego
   useEffect(() => {
     let active = true;
     if (proyectoId && !esGastoEstudio) {
-      fetch(`http://localhost:3005/api/proyectos/${proyectoId}/detalle`)
+      fetch(`${API_BASE}/proyectos/${proyectoId}/detalle`)
         .then(res => res.json())
         .then(data => {
           if (active) {

@@ -10,19 +10,110 @@ app.use(cors());
 app.use(express.json());
 
 // Configuración Pool de PostgreSQL
-const dbUrl = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
+const connectionString = process.env.DATABASE_URL || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
 const pool = new Pool({
-  connectionString: dbUrl,
+  connectionString,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 pool.on('error', (err) => {
   console.error('Error inesperado en el pool de PostgreSQL:', err);
 });
 
-// Inicializar tablas de empleados si no existen
-const initEmpleadosDB = async () => {
+// Inicializar esquema completo de la base de datos si no existe
+const initCompleteDB = async () => {
   try {
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS clientes (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(100) NOT NULL,
+          dni_cuit VARCHAR(30),
+          telefono VARCHAR(50),
+          email VARCHAR(100),
+          direccion VARCHAR(255),
+          notas TEXT,
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS proyectos (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(100) NOT NULL,
+          ubicacion VARCHAR(255),
+          presupuesto_estimado DECIMAL(15, 2),
+          fecha_inicio DATE DEFAULT CURRENT_DATE,
+          estado VARCHAR(20) DEFAULT 'Activo',
+          cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS etapas (
+          id SERIAL PRIMARY KEY,
+          proyecto_id INTEGER REFERENCES proyectos(id) ON DELETE CASCADE,
+          nombre VARCHAR(100) NOT NULL,
+          descripcion TEXT,
+          presupuesto DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+          orden INTEGER DEFAULT 1,
+          estado VARCHAR(20) DEFAULT 'En Curso',
+          fecha_inicio DATE,
+          fecha_fin DATE,
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS categorias (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(50) NOT NULL UNIQUE,
+          es_estudio BOOLEAN DEFAULT FALSE
+      );
+
+      CREATE TABLE IF NOT EXISTS cuentas_tesoreria (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(100) NOT NULL UNIQUE,
+          tipo VARCHAR(30) NOT NULL,
+          banco_nombre VARCHAR(100),
+          numero_cuenta_cbu VARCHAR(50),
+          saldo DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+          moneda VARCHAR(5) NOT NULL DEFAULT 'ARS',
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS gastos (
+          id SERIAL PRIMARY KEY,
+          proyecto_id INTEGER REFERENCES proyectos(id) ON DELETE CASCADE,
+          etapa_id INTEGER REFERENCES etapas(id) ON DELETE SET NULL,
+          categoria_id INTEGER REFERENCES categorias(id) ON DELETE RESTRICT,
+          monto DECIMAL(15, 2) NOT NULL,
+          descripcion TEXT NOT NULL,
+          fecha_gasto DATE NOT NULL DEFAULT CURRENT_DATE,
+          comprobante_url VARCHAR(255),
+          es_gasto_estudio BOOLEAN DEFAULT FALSE,
+          cuenta_id INTEGER REFERENCES cuentas_tesoreria(id) ON DELETE SET NULL,
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ingresos_cliente (
+          id SERIAL PRIMARY KEY,
+          proyecto_id INTEGER REFERENCES proyectos(id) ON DELETE CASCADE,
+          etapa_id INTEGER REFERENCES etapas(id) ON DELETE SET NULL,
+          monto DECIMAL(15, 2) NOT NULL,
+          moneda VARCHAR(5) NOT NULL DEFAULT 'ARS',
+          medio_pago VARCHAR(30) NOT NULL DEFAULT 'efectivo_ars',
+          cuenta_id INTEGER REFERENCES cuentas_tesoreria(id) ON DELETE SET NULL,
+          fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+          concepto TEXT,
+          comprobante_url VARCHAR(255),
+          creado_en TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS movimientos_tesoreria (
+          id SERIAL PRIMARY KEY,
+          cuenta_id INTEGER REFERENCES cuentas_tesoreria(id) ON DELETE CASCADE,
+          tipo VARCHAR(15) NOT NULL,
+          monto DECIMAL(15, 2) NOT NULL,
+          concepto TEXT NOT NULL,
+          gasto_id INTEGER REFERENCES gastos(id) ON DELETE SET NULL,
+          ingreso_id INTEGER REFERENCES ingresos_cliente(id) ON DELETE SET NULL,
+          fecha TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS empleados (
           id SERIAL PRIMARY KEY,
           nombre VARCHAR(100) NOT NULL,
@@ -51,6 +142,8 @@ const initEmpleadosDB = async () => {
       ALTER TABLE pagos_empleados ADD COLUMN IF NOT EXISTS etapa_id INTEGER REFERENCES etapas(id) ON DELETE SET NULL;
       ALTER TABLE gastos ADD COLUMN IF NOT EXISTS moneda VARCHAR(10) DEFAULT 'ARS';
       ALTER TABLE movimientos_tesoreria ADD COLUMN IF NOT EXISTS operacion_id VARCHAR(50);
+      ALTER TABLE cuentas_tesoreria ADD COLUMN IF NOT EXISTS banco_nombre VARCHAR(100);
+      ALTER TABLE cuentas_tesoreria ADD COLUMN IF NOT EXISTS numero_cuenta_cbu VARCHAR(50);
 
       INSERT INTO categorias (nombre, es_estudio)
       VALUES ('Mano de Obra (MDO)', FALSE)
@@ -59,13 +152,20 @@ const initEmpleadosDB = async () => {
       INSERT INTO categorias (nombre, es_estudio)
       VALUES ('Sueldos y Honorarios (Estudio)', TRUE)
       ON CONFLICT (nombre) DO NOTHING;
+
+      INSERT INTO cuentas_tesoreria (nombre, tipo, banco_nombre, numero_cuenta_cbu, saldo, moneda)
+      VALUES 
+        ('Efectivo Pesos (ARS)', 'efectivo_ars', 'Caja Chica Oficina', '', 0.00, 'ARS'),
+        ('Efectivo Dólares (USD)', 'efectivo_usd', 'Caja Fuerte Estudio', '', 0.00, 'USD'),
+        ('Banco Galicia ARS', 'banco_ars', 'Banco Galicia', '', 0.00, 'ARS')
+      ON CONFLICT (nombre) DO NOTHING;
     `);
-    console.log('Tablas de empleados y categorias MDO verificadas correctamente.');
+    console.log('Base de datos y tablas verificadas correctamente.');
   } catch (err) {
-    console.error('Error al inicializar esquema de empleados:', err);
+    console.error('Error al inicializar la base de datos:', err);
   }
 };
-initEmpleadosDB();
+initCompleteDB();
 
 // ---------------------------------------------------
 // RUTA DE PRUEBA Y SALUD

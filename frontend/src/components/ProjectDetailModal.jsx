@@ -16,6 +16,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { formatCurrency, formatDate, getStatusBadgeClass } from '../utils/formatters';
+import { API_BASE } from '../config';
 
 export default function ProjectDetailModal({ 
   isOpen, 
@@ -47,7 +48,7 @@ export default function ProjectDetailModal({
     }
 
     try {
-      const res = await fetch(`http://localhost:3005/api/proyectos/${projectId}/detalle`);
+      const res = await fetch(`${API_BASE}/proyectos/${projectId}/detalle`);
       if (res.ok) {
         const data = await res.json();
         setDetailData(data);
@@ -63,7 +64,7 @@ export default function ProjectDetailModal({
   useEffect(() => {
     let isMounted = true;
     if (isOpen && projectId) {
-      fetch(`http://localhost:3005/api/proyectos/${projectId}/detalle`)
+      fetch(`${API_BASE}/proyectos/${projectId}/detalle`)
         .then(res => res.json())
         .then(data => {
           if (isMounted) setDetailData(data);

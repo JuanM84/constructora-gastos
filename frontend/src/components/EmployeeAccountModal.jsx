@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, DollarSign, Wallet, Calendar, HardHat, Briefcase, Trash2, Plus, User, FileText } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
-const API_BASE = 'http://localhost:3005/api';
+import { API_BASE } from '../config';
 
 export default function EmployeeAccountModal({
   isOpen,

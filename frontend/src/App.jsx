@@ -40,8 +40,7 @@ import {
   Wallet,
   BarChart3
 } from 'lucide-react';
-
-const API_BASE = 'http://localhost:3005/api';
+import { API_BASE } from './config';
 
 function App() {
   const getTabFromPath = () => {
@@ -945,9 +944,9 @@ function App() {
             justifyContent: 'space-between'
           }}>
             <div>
-              <strong>⚠️ No se pudo conectar con el servidor backend (http://localhost:3005).</strong>
+              <strong>⚠️ No se pudo conectar con el servidor backend ({API_BASE}).</strong>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Asegúrate de que la base de datos PostgreSQL en Docker y el backend de Node.js estén corriendo.
+                Asegúrate de que la base de datos PostgreSQL y el servidor backend estén ejecutándose correctamente.
               </div>
             </div>
             <button className="btn btn-secondary" onClick={loadAllData}>Reintentar Conexión</button>
