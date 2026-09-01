@@ -953,13 +953,8 @@ function App() {
 
           {currentUser?.rol === 'admin' && (
             <button
-              className={`tab-btn ${activeTab === 'usuarios' ? 'active' : ''}`}
+              className={`tab-btn admin-tab ${activeTab === 'usuarios' ? 'active' : ''}`}
               onClick={() => navigateTab('usuarios')}
-              style={{
-                border: '1px solid rgba(217, 119, 6, 0.3)',
-                background: activeTab === 'usuarios' ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.08)',
-                color: '#f59e0b'
-              }}
             >
               <Shield size={18} />
               <span>Usuarios</span>

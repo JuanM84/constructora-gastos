@@ -173,33 +173,28 @@ h1, h2, h3, h4, h5, h6 {
 /* Nav Tabs */
 .nav-tabs {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   background: rgba(15, 23, 42, 0.6);
-  padding: 0.35rem;
+  padding: 0.5rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  margin-top: 1.5rem;
-  margin-bottom: 2rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.nav-tabs::-webkit-scrollbar {
-  display: none;
+  margin-top: 1.25rem;
+  margin-bottom: 1.75rem;
 }
 
 .tab-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.65rem 1.25rem;
+  padding: 0.6rem 1.1rem;
   border-radius: var(--radius-sm);
   background: transparent;
   border: none;
   color: var(--text-muted);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -214,6 +209,23 @@ h1, h2, h3, h4, h5, h6 {
 .tab-btn.active {
   background: var(--accent-amber);
   color: var(--text-inverse);
+  box-shadow: 0 4px 12px var(--accent-amber-glow);
+}
+
+.tab-btn.admin-tab {
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-amber);
+}
+
+.tab-btn.admin-tab:hover {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.tab-btn.admin-tab.active {
+  background: linear-gradient(135deg, var(--accent-amber), #d97706);
+  color: #ffffff;
   box-shadow: 0 4px 12px var(--accent-amber-glow);
 }
 
@@ -975,6 +987,78 @@ input[type="date"].form-control {
 
   div[style*="transition: width 0.4s ease"] {
     background: #2563eb !important;
+  }
+}
+
+/* ==========================================================================
+   Mobile Responsive Optimizations
+   ========================================================================== */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 1rem 0.75rem 2rem !important;
+  }
+
+  .header-inner {
+    padding: 0 0.75rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .brand-title span:first-child {
+    font-size: 1.1rem !important;
+  }
+
+  .brand-subtitle {
+    font-size: 0.65rem !important;
+  }
+
+  .nav-tabs {
+    padding: 0.4rem !important;
+    gap: 0.35rem !important;
+  }
+
+  .tab-btn {
+    flex: 1 1 calc(50% - 0.35rem);
+    justify-content: center;
+    padding: 0.55rem 0.65rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+
+  .stat-card {
+    padding: 0.85rem !important;
+  }
+
+  .stat-info .stat-value {
+    font-size: 1.25rem !important;
+  }
+
+  .modal-content {
+    width: 98vw !important;
+    max-height: 94vh !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .modal-header, .modal-body, .modal-footer {
+    padding: 0.85rem 1rem !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .tab-btn {
+    flex: 1 1 100% !important;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 
