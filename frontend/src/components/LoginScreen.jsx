@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, KeyRound } from 'lucide-react';
+import { Building2, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../config';
 import { setAuthData } from '../utils/auth';
 
@@ -43,12 +43,6 @@ export default function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  const handleUseDemoAdmin = () => {
-    setEmail('admin@constructora.com');
-    setPassword('admin123');
-    setError('');
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -68,9 +62,20 @@ export default function LoginScreen({ onLoginSuccess }) {
         borderRadius: '1.25rem',
         padding: '2.5rem 2rem',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        color: '#f8fafc'
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        {/* Header con Icono / Marca */}
+        {/* Decorative Top Accent Line */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'linear-gradient(90deg, #3b82f6 0%, #f59e0b 50%, #10b981 100%)'
+        }} />
+
+        {/* Header / Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{
             width: '60px',
@@ -85,8 +90,8 @@ export default function LoginScreen({ onLoginSuccess }) {
           }}>
             <Building2 size={32} color="#ffffff" />
           </div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: '700', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>
-            Constructora Gastos
+          <h1 style={{ fontSize: '1.6rem', fontWeight: '700', margin: '0 0 0.5rem 0', letterSpacing: '0.25em', color: '#f8fafc' }}>
+            Estudio LK
           </h1>
           <p style={{ fontSize: '0.875rem', color: '#94a3b8', margin: 0 }}>
             Ingrese sus credenciales para acceder al sistema
@@ -99,54 +104,55 @@ export default function LoginScreen({ onLoginSuccess }) {
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
             color: '#fca5a5',
-            padding: '0.85rem 1rem',
+            padding: '0.75rem 1rem',
             borderRadius: '0.75rem',
             marginBottom: '1.5rem',
+            fontSize: '0.85rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.6rem',
-            fontSize: '0.875rem'
+            gap: '0.6rem'
           }}>
             <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Formulario de Login */}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#cbd5e1', marginBottom: '0.4rem' }}>
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#cbd5e1', marginBottom: '0.5rem' }}>
               Correo Electrónico
             </label>
             <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+              <Mail size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ejemplo@constructora.com"
+                placeholder="usuario@estudiolk.com"
                 required
                 style={{
                   width: '100%',
-                  padding: '0.8rem 1rem 0.8rem 2.8rem',
+                  padding: '0.75rem 1rem 0.75rem 2.6rem',
                   background: 'rgba(15, 23, 42, 0.6)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
                   borderRadius: '0.75rem',
                   color: '#ffffff',
-                  fontSize: '0.925rem',
+                  fontSize: '0.9rem',
                   outline: 'none',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  transition: 'all 0.2s ease'
                 }}
               />
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.75rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#cbd5e1', marginBottom: '0.4rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#cbd5e1', marginBottom: '0.5rem' }}>
               Contraseña
             </label>
             <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+              <Lock size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
               <input
                 type="password"
                 value={password}
@@ -155,14 +161,15 @@ export default function LoginScreen({ onLoginSuccess }) {
                 required
                 style={{
                   width: '100%',
-                  padding: '0.8rem 1rem 0.8rem 2.8rem',
+                  padding: '0.75rem 1rem 0.75rem 2.6rem',
                   background: 'rgba(15, 23, 42, 0.6)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
                   borderRadius: '0.75rem',
                   color: '#ffffff',
-                  fontSize: '0.925rem',
+                  fontSize: '0.9rem',
                   outline: 'none',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  transition: 'all 0.2s ease'
                 }}
               />
             </div>
@@ -198,35 +205,6 @@ export default function LoginScreen({ onLoginSuccess }) {
             )}
           </button>
         </form>
-
-        {/* Demo Credential Assistant */}
-        <div style={{
-          marginTop: '2rem',
-          paddingTop: '1.25rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          textAlign: 'center'
-        }}>
-          <button
-            type="button"
-            onClick={handleUseDemoAdmin}
-            style={{
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: '1px dashed rgba(59, 130, 246, 0.3)',
-              color: '#60a5fa',
-              padding: '0.5rem 0.85rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.8rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem'
-            }}
-          >
-            <KeyRound size={14} />
-            Usar credenciales de Administrador por defecto
-          </button>
-        </div>
       </div>
     </div>
   );
